@@ -1,0 +1,32 @@
+{
+  "name": "ltpa-scraper",
+  "version": "1.0.0",
+  "description": "Scrape IBM WPS login page for LTPA token and JSESSION ID",
+  "repository": {
+    "type": "git"
+  },
+  "main": "./src/scrape",
+  "scripts": {
+    "lint": "eslint src/*.js",
+    "test": "jasmine"
+  },
+  "bin": {
+    "ltpa-scraper": "./bin/ltpa-scraper"
+  },
+  "author": "Rob",
+  "license": "CC0-1.0",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.3",
+    "cli": "^1.0.1",
+    "request": "^2.88.0"
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-plugin-import": "^2.18.2",
+    "eslint-plugin-node": "^5.2.1",
+    "eslint-plugin-promise": "^3.8.0",
+    "eslint-plugin-standard": "^3.1.0",
+    "jasmine": "^2.99.0"
+  }
+}
