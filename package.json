@@ -1,6 +1,6 @@
 {
   "name": "ltpa-scraper",
-  "version": "1.0.1",
+  "version": "1.0.2-SNAPSHOT",
   "description": "Scrape IBM WPS portal server login page for LTPA token and JSESSION ID",
   "homepage": "https://github.com/kozmoz/ltpa-scraper",
   "repository": {
