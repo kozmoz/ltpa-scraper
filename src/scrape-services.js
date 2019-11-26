@@ -16,11 +16,13 @@ const packageJson = require(path.join(__dirname, '..', 'package.json'));
 /** @namespace packageJson.name */
 /** @namespace packageJson.version */
 const USER_AGENT_STRING = `${ packageJson.name }/${ packageJson.version }`;
+const LTPA2_TOKEN_NAME = 'LtpaToken2';
 
 const debugPrefix = '\x1B[36mDEBUG\x1B[0m: ';
 
+
 /**
- * Get the LTPA2 and JSESSION tokens.
+ * Get the LTPA2- and JSESSION tokens.
  *
  * @param {Object} configuration object with properties 'username', 'password', 'url' and 'verbose' (optional)
  * @return {Promise} A promise that resolves with the tokens found or rejects with an error
@@ -69,10 +71,11 @@ function getTokens(configuration) {
 
         // We enable cookies by default, so they're also used in subsequent requests.
         // https://github.com/request/request#readme
+        const cookieJar = request.jar();
         const requestInstance = request.defaults({
-            jar: true,
+            jar: cookieJar,
             // Ignore(allow) self-signed certificates.
-            rejectUnauthorized: false
+            rejectUnauthorized: false,
         });
 
         if (verbose) {
@@ -80,7 +83,7 @@ function getTokens(configuration) {
             console.log(`${ debugPrefix }Request headers: "${ JSON.stringify(headersGet, null, 4) }"`);
         }
 
-        // First GET to get the session cookie.
+        // First GET request to receive the session cookie.
         requestInstance.get({ url: url, headers: headersGet }, (error, response, html) => {
 
             if (verbose && response) {
@@ -107,7 +110,6 @@ function getTokens(configuration) {
             const formAction = cheerio.load(html)('form').attr('action');
             if (verbose) {
                 console.log(`${ debugPrefix }Form action URL: "${ formAction }"`);
-                return;
             }
 
             if (!formAction) {
@@ -131,12 +133,6 @@ function getTokens(configuration) {
                 postUrl = trimEndSlash(locationAfterRedirects) + '/' + trimStartSlash(formAction);
             }
 
-            // From Chrome:
-            // https://www.werkenbijgeldersevallei.nl/!ut/p/z1/04_Sj9CPykssy0xPLMnMz0vMAfIjo8ziDVCAo4FTkJGTsYGBu7OJfjghBVEY0sgKgfqjoEpMTAxN3A38DHxMTAwCgw1cQ43MXAwNDIzhCnCaUZAbYZDpqKgIAAfAsh8!/p0/IZ7_00000000000000A0BR2B300I81=CZ6_00000000000000A0BR2B300GC4=LA0=Eaction!wps.portlets.login==/
-
-            // From app:
-            // https://www.werkenbijgeldersevallei.nl/!ut/p/z0/04_Sj9CPykssy0xPLMnMz0vMAfIj8nKt8jNTrMoLivV88tMz8_QLsh0VAZSk7Xs!/p0/IZ7_00000000000000A0BR2B300I81=CZ6_00000000000000A0BR2B300GC4=LA0=Eaction!wps.portlets.login==/
-
             requestInstance.post({
                 url: postUrl,
                 headers: headersPost,
@@ -156,10 +152,13 @@ function getTokens(configuration) {
                     });
                     return;
                 }
+
+                // https://github.com/salesforce/tough-cookie#getcookiescurrenturl-options-cberrcookies
+                const cookies = cookieJar.getCookies(url, { allPaths: true });
                 if (verbose) {
                     console.log(`${ debugPrefix }Login statusCode: ${ response.statusCode }`);
+                    console.log(`${ debugPrefix }Cookies Jar: ${ JSON.stringify(cookies, null, 2) }`);
                     console.log(`${ debugPrefix }Login response html: ${ html }`);
-                    console.log(`${ debugPrefix }Cookies: ${ JSON.stringify(response.headers['set-cookie'], null, 2) }`);
                 }
                 if (response.statusCode !== 200 /* OK */ && response.statusCode !== 302 /* Found */) {
                     rejectFn({
@@ -168,11 +167,13 @@ function getTokens(configuration) {
                     });
                     return;
                 }
-                const cookiesArray = response.headers['set-cookie'];
                 // We at least have received an LTPA token, return successfully.
-                if (cookiesArray && cookiesArray.length) {
-                    const tokens = parseCookieValues(cookiesArray);
-                    if (tokens['LtpaToken2']) {
+                if (cookies && cookies.length) {
+                    const tokens = [];
+                    for(const cookie of cookies) {
+                        tokens[cookie.key] = cookie.value;
+                    }
+                    if (tokens[LTPA2_TOKEN_NAME]) {
                         resolveFn(tokens);
                         return;
                     }
@@ -188,7 +189,7 @@ function getTokens(configuration) {
                         errorMessage: `Login failed with message: ${ errorMessage }`
                     });
                 }
-                if (!cookiesArray) {
+                if (!cookies) {
                     rejectFn({
                         errorCode: -1,
                         errorMessage: 'Did not receive any tokens after login'
@@ -274,30 +275,10 @@ function parseUrl(url) {
  ]
  */
 
-/**
- * Parse cookie header to object with keys.
- *
- * @param {string[]} cookiesArray
- * @return Object
- */
-function parseCookieValues(cookiesArray) {
-    const values = {};
-    for (const cookie of cookiesArray) {
-        // Split only on first occurrence of '='.
-        const [name, value] = cookie.replace('=', '~~~').split('~~~');
-        if (name.toLowerCase() !== 'ltpatoken2' && name.toLowerCase() !== 'jsessionid') {
-            continue;
-        }
-        values[name] = value.split(';')[0];
-    }
-    return values;
-}
-
 // Public functions.
 exports.getTokens = getTokens;
 // For unit testing purposes.
 exports._parseUrl = parseUrl;
-exports._parseCookieValues = parseCookieValues;
 exports._trimExcessiveWhitespace = trimExcessiveWhitespace;
 exports._trimStartSlash = trimStartSlash;
 exports._trimEndSlash = trimEndSlash;
